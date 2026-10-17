@@ -1,0 +1,23 @@
+# VolumeShader_BM
+
+> VolumeShader_BM is an open-access, browser-based WebGL ray-marching GPU benchmark and stress-testing tool that computes a 3D Mandelbulb fractal mathematically in real-time.
+
+## Project Summary
+Unlike traditional gaming benchmarks that measure polygon rasterization, VolumeShader_BM executes pure GLSL fragment shaders on a full-screen viewport. It isolates floating-point arithmetic logic unit (ALU) throughput, driver efficiency (via ANGLE/DirectX/Metal/Vulkan), and thermal throttling thresholds across smartphones, laptops, and desktop GPUs.
+
+## Key Technical Specifications
+- **Render Technique:** Volumetric Sphere Tracing / Ray Marching (60–64 steps per ray).
+- **Mathematical Surface:** 8th-order Mandelbulb Fractal Distance Estimator (DE).
+- **Graphics API:** WebGL 1.0 / WebGL 2.0 with unmasked hardware querying (`WEBGL_debug_renderer_info`).
+- **Execution Model:** 100% Client-Side. Zero asset downloads, no external tracking, no telemetry logging.
+
+## Hardware Reference Performance Tiers
+- **Tier S (58 - 60 FPS):** NVIDIA RTX 40/50 Series, AMD RX 7000/8000, Apple Silicon (M2/M3/M4).
+- **Tier A (42 - 58 FPS):** Apple A17/A18 Pro (iPhone 15/16 Pro), Snapdragon 8 Gen 2/3/4.
+- **Tier B (25 - 41 FPS):** Intel Iris Xe, AMD Radeon 780M, Dimensity 9000/9200.
+- **Tier C (< 20 FPS):** Mali-G52/G57, entry-level smartphone GPUs, integrated legacy graphics.
+
+## Core Links & Documentation
+- [VolumeShader_BM Benchmark Tool](https://ahmedelazabdev.github.io/volumeshaderbm/): Real-time interactive WebGL stress test, adaptive resolution scaler, and live FPS monitor.
+- [About & Technical Methodology](https://ahmedelazabdev.github.io/volumeshaderbm/about.html): In-depth architectural explanation of volumetric ray-marching vs. rasterization.
+- [Privacy Policy](https://ahmedelazabdev.github.io/volumeshaderbm/privacy.html): Client-side execution confirmation, zero telemetry collection, and local storage usage disclosures.

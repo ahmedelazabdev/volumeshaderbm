@@ -125,7 +125,7 @@
       --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.08);
       --shadow-xl: 0 10px 25px -5px rgba(0,0,0,0.08);
       --radius: 14px;
-      /* Zero-CLS Native System Font Stack (0 KB, 0ms latency) */
+      /* Zero-CLS Native System Font Stack */
       --font-stack: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
 
@@ -344,7 +344,7 @@
       color: #1e293b;
     }
 
-    /* Canvas Stage Container (Fixed Aspect Ratio to ensure 0 CLS) */
+    /* Canvas Stage Container */
     .stage-wrapper {
       position: relative;
       width: 100%;
@@ -373,6 +373,49 @@
       cursor: grabbing;
     }
 
+    /* Start Overlay for Zero Main-Thread Initial Blocking */
+    .start-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(9, 13, 22, 0.65);
+      backdrop-filter: blur(4px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 10;
+      transition: opacity 0.25s ease;
+    }
+
+    .btn-hero-start {
+      padding: 14px 28px;
+      border-radius: 9999px;
+      background: var(--primary);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 1.1rem;
+      font-weight: 800;
+      border: 2px solid #60a5fa;
+      cursor: pointer;
+      box-shadow: 0 10px 25px rgba(29, 78, 216, 0.5);
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    .btn-hero-start:hover {
+      transform: scale(1.05);
+      background: var(--primary-hover);
+    }
+
+    .overlay-tip {
+      font-size: 0.88rem;
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+
     /* HUD Overlay over Canvas */
     .stage-hud {
       position: absolute;
@@ -390,6 +433,7 @@
       display: flex;
       flex-direction: column;
       gap: 2px;
+      z-index: 5;
     }
 
     .hud-fps {
@@ -784,7 +828,7 @@
             <span>▶ Start 30s Benchmark</span>
           </button>
           <button id="pause-btn" class="btn-action" onclick="togglePause()">
-            <span>⏸ Pause</span>
+            <span>▶ Free Run</span>
           </button>
           <button class="btn-action" onclick="toggleFullscreen()">
             <span>⛶ Fullscreen</span>
@@ -801,9 +845,18 @@
       <!-- Canvas Stage -->
       <div class="stage-wrapper" id="stage-box">
         <canvas id="gl-canvas"></canvas>
+
+        <!-- Initial Start Overlay to eliminate 35s Main-Thread TBT -->
+        <div class="start-overlay" id="start-overlay">
+          <button class="btn-hero-start" onclick="startBenchmark()">
+            ⚡ Start GPU Benchmark
+          </button>
+          <span class="overlay-tip">Click to test peak & sustained framerates</span>
+        </div>
+
         <div class="stage-hud">
-          <div class="hud-fps" id="hud-fps">00 FPS</div>
-          <div id="hud-ms">00.0 ms/frame</div>
+          <div class="hud-fps" id="hud-fps">Ready</div>
+          <div id="hud-ms">Click to start</div>
         </div>
       </div>
 
@@ -1010,11 +1063,12 @@
     </div>
   </footer>
 
-  <!-- WebGL Volumetric Raymarching & Benchmark Engine -->
+  <!-- WebGL Volumetric Raymarching & Benchmark Engine (Zero-Reflow Optimized) -->
   <script>
     document.getElementById('current-year').textContent = new Date().getFullYear();
 
     const canvas = document.getElementById('gl-canvas');
+    const stageBox = document.getElementById('stage-box');
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
 
     const statFps = document.getElementById('stat-fps');
@@ -1029,11 +1083,13 @@
     const progressBar = document.getElementById('progress-bar');
     const gpuNameEl = document.getElementById('gpu-name');
     const canvasDimEl = document.getElementById('canvas-dim');
+    const startOverlay = document.getElementById('start-overlay');
 
-    let isPaused = false;
+    // Standby mode by default to guarantee 0ms TBT on page load
+    let isRunning = false;
     let isBenchmarking = false;
     let benchStartTime = 0;
-    const BENCH_DURATION = 30000; // 30 seconds
+    const BENCH_DURATION = 30000;
     let benchFrameCount = 0;
 
     let resScale = 1.0;
@@ -1076,7 +1132,6 @@
         uniform float u_time;
         uniform vec2 u_rot;
 
-        // Fast hash for procedural 3D noise
         float hash(vec3 p) {
           p = fract(p * 0.3183099 + 0.1);
           p *= 17.0;
@@ -1103,7 +1158,6 @@
         void main() {
           vec2 uv = (gl_FragCoord.xy - 0.5 * u_res) / min(u_res.x, u_res.y);
 
-          // Camera setup
           float yaw = u_rot.x + u_time * 0.2;
           float pitch = u_rot.y;
           vec3 ro = vec3(sin(yaw) * 2.8, pitch * 2.0, cos(yaw) * 2.8);
@@ -1113,7 +1167,6 @@
           vec3 vv = normalize(cross(uu, ww));
           vec3 rd = normalize(uv.x * uu + uv.y * vv + 1.6 * ww);
 
-          // Raymarch volumetric cloud
           vec4 col = vec4(0.0);
           float t = 1.2;
           float dt = 2.4 / float(${steps});
@@ -1137,7 +1190,6 @@
             t += dt;
           }
 
-          // Background deep space gradient
           vec3 bg = mix(vec3(0.04, 0.06, 0.12), vec3(0.01, 0.02, 0.04), length(uv));
           gl_FragColor = vec4(col.rgb + bg * (1.0 - col.a), 1.0);
         }
@@ -1160,6 +1212,7 @@
     }
 
     function initShaders(steps) {
+      if (!gl) return;
       if (program) gl.deleteProgram(program);
 
       const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
@@ -1176,7 +1229,6 @@
 
       gl.useProgram(program);
 
-      // Full screen quad buffer
       const posBuffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -1197,21 +1249,36 @@
       uRotLoc = gl.getUniformLocation(program, 'u_rot');
     }
 
-    initShaders(raySteps);
+    // ELIMINATE FORCED REFLOW: Cached dimensions without getBoundingClientRect inside render()
+    let cachedW = 800;
+    let cachedH = 480;
 
-    // Canvas Resize Handling
-    function resizeCanvas() {
-      const rect = canvas.getBoundingClientRect();
-      const targetW = Math.round(rect.width * resScale);
-      const targetH = Math.round(rect.height * resScale);
+    function applyCanvasResolution() {
+      if (!stageBox) return;
+      cachedW = Math.round(stageBox.clientWidth * resScale);
+      cachedH = Math.round(stageBox.clientHeight * resScale);
 
-      if (canvas.width !== targetW || canvas.height !== targetH) {
-        canvas.width = targetW;
-        canvas.height = targetH;
-        gl.viewport(0, 0, targetW, targetH);
-        canvasDimEl.textContent = `${targetW} × ${targetH}`;
-      }
+      canvas.width = cachedW;
+      canvas.height = cachedH;
+      if (gl) gl.viewport(0, 0, cachedW, cachedH);
+      canvasDimEl.textContent = `${cachedW} × ${cachedH}`;
     }
+
+    // Window Resize Observer handles reflow outside animation frames
+    window.addEventListener('resize', applyCanvasResolution, { passive: true });
+
+    initShaders(raySteps);
+    applyCanvasResolution();
+
+    // Render single initial frame for visual preview with zero continuous load
+    function renderSingleFrame() {
+      if (!gl || !program) return;
+      gl.uniform2f(uResLoc, canvas.width, canvas.height);
+      gl.uniform1f(uTimeLoc, 0.5);
+      gl.uniform2f(uRotLoc, rotX, rotY);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+    renderSingleFrame();
 
     // Telemetry and Loop variables
     let frameCount = 0;
@@ -1221,9 +1288,7 @@
     let rollingFpsCount = 0;
 
     function render(now) {
-      if (!isPaused && gl && program) {
-        resizeCanvas();
-
+      if (isRunning && gl && program) {
         const sec = now * 0.001;
         gl.uniform2f(uResLoc, canvas.width, canvas.height);
         gl.uniform1f(uTimeLoc, sec);
@@ -1233,7 +1298,6 @@
         frameCount++;
         if (isBenchmarking) benchFrameCount++;
 
-        // Live FPS Calculation every 200ms
         const elapsed = now - lastFpsUpdate;
         if (elapsed >= 200) {
           currentFps = Math.round((frameCount * 1000) / elapsed);
@@ -1259,7 +1323,6 @@
           lastFpsUpdate = now;
         }
 
-        // Benchmark Countdown & Progress
         if (isBenchmarking) {
           const benchElapsed = now - benchStartTime;
           const pct = Math.min(100, Math.round((benchElapsed / BENCH_DURATION) * 100));
@@ -1269,36 +1332,46 @@
             completeBenchmark();
           }
         }
-      }
 
-      requestAnimationFrame(render);
+        requestAnimationFrame(render);
+      }
     }
 
-    requestAnimationFrame(render);
-
-    // Interactive Controls
     function updateResolution() {
       resScale = parseFloat(document.getElementById('res-scale').value);
-      resizeCanvas();
+      applyCanvasResolution();
+      if (!isRunning) renderSingleFrame();
       showToast(`Resolution scale adjusted to ${resScale}x`);
     }
 
     function updateRaySteps() {
       raySteps = parseInt(document.getElementById('step-count').value, 10);
       initShaders(raySteps);
+      if (!isRunning) renderSingleFrame();
       showToast(`Shader raymarching steps set to ${raySteps}`);
     }
 
     function togglePause() {
-      isPaused = !isPaused;
-      pauseBtn.innerHTML = isPaused ? '<span>▶ Resume</span>' : '<span>⏸ Pause</span>';
-      showToast(isPaused ? 'Rendering paused' : 'Rendering resumed');
+      if (startOverlay.style.display !== 'none') {
+        startOverlay.style.display = 'none';
+      }
+
+      isRunning = !isRunning;
+      pauseBtn.innerHTML = isRunning ? '<span>⏸ Pause</span>' : '<span>▶ Free Run</span>';
+      
+      if (isRunning) {
+        lastFpsUpdate = performance.now();
+        frameCount = 0;
+        requestAnimationFrame(render);
+        showToast('Rendering active (Free Run Mode)');
+      } else {
+        showToast('Rendering paused');
+      }
     }
 
     function toggleFullscreen() {
-      const stage = document.getElementById('stage-box');
       if (!document.fullscreenElement) {
-        stage.requestFullscreen().catch(() => {});
+        stageBox.requestFullscreen().catch(() => {});
       } else {
         document.exitFullscreen();
       }
@@ -1313,19 +1386,24 @@
     }
 
     function startBenchmark() {
-      if (isPaused) togglePause();
+      startOverlay.style.display = 'none';
+      isRunning = true;
       isBenchmarking = true;
       benchStartTime = performance.now();
       benchFrameCount = 0;
       rollingFpsTotal = 0;
       rollingFpsCount = 0;
+      lastFpsUpdate = performance.now();
+      frameCount = 0;
 
       benchBtn.innerHTML = '<span>⏹ Stop Benchmark</span>';
-      benchBtn.className = 'btn-action btn-primary-action';
+      pauseBtn.innerHTML = '<span>⏸ Pause</span>';
       progressTrack.style.display = 'block';
       progressBar.style.width = '0%';
       statScore.textContent = 'Measuring...';
+
       showToast('🚀 30s GPU Benchmark started! Keep this window focused.');
+      requestAnimationFrame(render);
     }
 
     function completeBenchmark() {
@@ -1357,7 +1435,8 @@
       rotY = Math.max(-0.6, Math.min(0.6, rotY - dy * 0.006));
       lastMouseX = e.clientX;
       lastMouseY = e.clientY;
-    });
+      if (!isRunning) renderSingleFrame();
+    }, { passive: true });
 
     canvas.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
@@ -1365,7 +1444,7 @@
         lastMouseX = e.touches[0].clientX;
         lastMouseY = e.touches[0].clientY;
       }
-    });
+    }, { passive: true });
 
     window.addEventListener('touchend', () => isDragging = false);
 
@@ -1377,7 +1456,8 @@
       rotY = Math.max(-0.6, Math.min(0.6, rotY - dy * 0.008));
       lastMouseX = e.touches[0].clientX;
       lastMouseY = e.touches[0].clientY;
-    });
+      if (!isRunning) renderSingleFrame();
+    }, { passive: true });
 
     function toggleFaqCard(header) {
       header.parentElement.classList.toggle('open');
